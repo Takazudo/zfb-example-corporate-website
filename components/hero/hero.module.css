@@ -1,0 +1,227 @@
+.hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      52rem 28rem at 78% -8%,
+      rgba(47, 91, 234, 0.5),
+      transparent 70%
+    ),
+    radial-gradient(
+      40rem 24rem at 8% 112%,
+      rgba(20, 184, 166, 0.32),
+      transparent 70%
+    ),
+    var(--color-night);
+  color: var(--color-on-night);
+}
+
+.inner {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: var(--space-8);
+  align-items: center;
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding: clamp(3.5rem, 2rem + 8vw, 7rem) var(--content-pad);
+}
+
+.eyebrow {
+  display: inline-block;
+  margin-block-end: var(--space-4);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid rgba(244, 246, 255, 0.22);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-on-night-muted);
+}
+
+.title {
+  font-size: var(--text-3xl);
+  font-weight: 800;
+}
+
+.accent {
+  font-style: normal;
+  background: linear-gradient(120deg, #7da2ff, var(--color-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.lede {
+  max-width: 34rem;
+  margin-block-start: var(--space-5);
+  font-size: var(--text-lg);
+  color: var(--color-on-night-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-block-start: var(--space-6);
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.primary {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  box-shadow: 0 12px 30px -10px rgba(47, 91, 234, 0.7);
+}
+
+.primary:hover {
+  transform: translateY(-2px);
+  background: #4670f4;
+}
+
+.secondary {
+  border: 1px solid rgba(244, 246, 255, 0.28);
+  color: var(--color-on-night);
+}
+
+.secondary:hover {
+  background: rgba(244, 246, 255, 0.08);
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-7);
+  margin: var(--space-8) 0 0;
+  padding-block-start: var(--space-5);
+  border-block-start: 1px solid rgba(244, 246, 255, 0.14);
+}
+
+.stat {
+  margin: 0;
+}
+
+.statValue {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.statLabel {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-on-night-muted);
+}
+
+/* ── Visual panel ────────────────────────────────────────────────────── */
+.panel {
+  position: relative;
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-2);
+}
+
+.panelGlow {
+  position: absolute;
+  inset: -12% -8% auto auto;
+  width: 60%;
+  aspect-ratio: 1;
+  background: radial-gradient(circle, rgba(125, 162, 255, 0.5), transparent 68%);
+  filter: blur(6px);
+  z-index: 0;
+}
+
+.card,
+.cardAlt {
+  position: relative;
+  z-index: 1;
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(244, 246, 255, 0.14);
+  background: linear-gradient(
+    160deg,
+    rgba(244, 246, 255, 0.12),
+    rgba(244, 246, 255, 0.04)
+  );
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-lg);
+}
+
+.cardAlt {
+  justify-self: end;
+  width: min(100%, 16rem);
+}
+
+.cardTag {
+  display: inline-block;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9db4ff;
+}
+
+.cardTitle {
+  margin-block-start: var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.progressTrack {
+  margin-block-start: var(--space-4);
+  height: 0.5rem;
+  border-radius: var(--radius-pill);
+  background: rgba(244, 246, 255, 0.16);
+  overflow: hidden;
+}
+
+.progressFill {
+  width: 68%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--color-accent), #7da2ff);
+}
+
+.cardMeta {
+  margin-block-start: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-on-night-muted);
+}
+
+.bigNumber {
+  margin-block-start: var(--space-2);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  background: linear-gradient(120deg, #7da2ff, var(--color-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@media (max-width: 56rem) {
+  .inner {
+    grid-template-columns: 1fr;
+    gap: var(--space-7);
+  }
+
+  .panel {
+    max-width: 26rem;
+  }
+
+  .cardAlt {
+    justify-self: stretch;
+    width: 100%;
+  }
+}

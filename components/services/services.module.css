@@ -1,0 +1,112 @@
+.section {
+  background: var(--color-canvas);
+}
+
+.inner {
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding: var(--section-gap) var(--content-pad);
+}
+
+.head {
+  max-width: 42rem;
+}
+
+.eyebrow {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-brand);
+}
+
+.heading {
+  margin-block-start: var(--space-3);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+}
+
+.intro {
+  margin-block-start: var(--space-4);
+  font-size: var(--text-lg);
+  color: var(--color-ink-soft);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--space-5);
+  margin-block-start: var(--space-7);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-border-strong);
+}
+
+.badge {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: var(--radius-md);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-deep);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.cardTitle {
+  margin-block-start: var(--space-4);
+  font-size: var(--text-xl);
+  font-weight: 700;
+}
+
+.cardBody {
+  margin-block-start: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.points {
+  margin-block-start: var(--space-5);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--color-border);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.point {
+  position: relative;
+  padding-inline-start: var(--space-5);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-ink-soft);
+}
+
+.point::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--color-accent);
+}

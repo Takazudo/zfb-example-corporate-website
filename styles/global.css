@@ -1,0 +1,167 @@
+/*
+ * Global stylesheet — design tokens + light reset only.
+ *
+ * Component styling lives in *.module.css files (scoped at build time).
+ * This file is plain global CSS: it carries the :root design tokens,
+ * a minimal reset, and base element styles every component inherits.
+ */
+
+:root {
+  /* ── Brand palette ───────────────────────────────────────────────── */
+  --color-ink: #0f1729;
+  --color-ink-soft: #3b4663;
+  --color-ink-muted: #6b7592;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-canvas: #f6f7fb;
+  --color-canvas-deep: #eef0f7;
+  --color-border: #e3e5ee;
+  --color-border-strong: #c9ccdc;
+
+  --color-brand: #2f5bea;
+  --color-brand-deep: #1d3fb8;
+  --color-brand-soft: #e9eefe;
+  --color-accent: #14b8a6;
+  --color-on-brand: #ffffff;
+
+  /* Deep navy section ground used by hero + footer */
+  --color-night: #0c1330;
+  --color-night-soft: #161f44;
+  --color-on-night: #f4f6ff;
+  --color-on-night-muted: #a7b0d4;
+
+  /* ── Typography ──────────────────────────────────────────────────── */
+  --font-sans:
+    "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+
+  --text-xs: 0.78rem;
+  --text-sm: 0.9rem;
+  --text-base: 1rem;
+  --text-lg: 1.18rem;
+  --text-xl: clamp(1.35rem, 1.1rem + 1vw, 1.7rem);
+  --text-2xl: clamp(1.7rem, 1.3rem + 1.8vw, 2.4rem);
+  --text-3xl: clamp(2.3rem, 1.6rem + 3.2vw, 3.6rem);
+
+  /* ── Spacing scale ───────────────────────────────────────────────── */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+
+  /* Fluid vertical rhythm between page sections */
+  --section-gap: clamp(3.5rem, 2rem + 7vw, 7rem);
+  --content-max: 72rem;
+  --content-pad: clamp(1.25rem, 0.5rem + 3vw, 3rem);
+
+  /* ── Radii + shadows ─────────────────────────────────────────────── */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.85rem;
+  --radius-lg: 1.35rem;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 41, 0.06);
+  --shadow-md:
+    0 4px 10px -4px rgba(15, 23, 41, 0.12),
+    0 12px 28px -10px rgba(15, 23, 41, 0.14);
+  --shadow-lg:
+    0 8px 20px -8px rgba(15, 23, 41, 0.18),
+    0 30px 56px -24px rgba(15, 23, 41, 0.26);
+
+  --ring: 0 0 0 3px var(--color-brand-soft);
+
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Keyboard skip link — visually hidden until focused. */
+.skip-link {
+  position: absolute;
+  left: var(--space-4);
+  top: var(--space-4);
+  z-index: 100;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  transform: translateY(-150%);
+  transition: transform 0.18s ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
