@@ -1,7 +1,8 @@
 # zfb-example-corporate-website
 
 A polished corporate marketing website built with [zfb](https://github.com/Takazudo/zudo-front-builder)
-and styled entirely with **CSS Modules** — no Tailwind.
+and authored entirely with **CSS Modules** — no Tailwind utilities anywhere
+in the source.
 
 **Live demo:** https://zfb-example-corporate-website.pages.dev/
 
@@ -17,7 +18,12 @@ stylesheet for design tokens and a light reset.
 - Component-scoped styling via `*.module.css` — class names are rewritten to
   scoped, file-stable identifiers at build time, so two components can both
   declare a `.card` class without colliding.
-- `zfb.config.ts` with `base: "/"` and Tailwind disabled.
+- `zfb.config.ts` with `base: "/"` and zfb defaults otherwise. Note: zfb's
+  compiled stylesheet ships its default Tailwind v4 preflight/theme layers
+  even though this demo authors no Tailwind — at the pinned zfb version,
+  `tailwind: { enabled: false }` would drop all authored CSS from the build
+  ([zfb#824](https://github.com/Takazudo/zudo-front-builder/issues/824)),
+  so the demo keeps the default.
 
 ## CSS Modules usage
 
@@ -47,34 +53,16 @@ styles/       global.css (design tokens + reset), css-modules.d.ts
 zfb.config.ts framework config (Preact, Tailwind disabled)
 ```
 
-## Sibling layout
+## Framework dependency
 
-This repo depends on the `zfb` framework via relative `file:` dependencies
-(`@takazudo/zfb` and `@takazudo/zfb-runtime`). It expects the `zfb` repo
-checked out as a **sibling directory**:
-
-```
-~/repos/zfb-ex/
-  zfb/                            <- the zfb framework repo (pinned SHA)
-  zfb-example-corporate-website/  <- this repo
-```
-
-The exact `zfb` commit this demo builds against is pinned in
-[`framework-pins.json`](./framework-pins.json).
+This repo depends on the `zfb` framework via the published npm packages
+[`@takazudo/zfb`](https://www.npmjs.com/package/@takazudo/zfb) and
+[`@takazudo/zfb-runtime`](https://www.npmjs.com/package/@takazudo/zfb-runtime),
+pinned to an exact prerelease version in `package.json`. `@takazudo/zfb`
+ships a prebuilt Rust binary per platform via npm optional dependencies —
+no cargo toolchain or sibling checkout required.
 
 ## Local development
-
-On a fresh checkout, bootstrap the sibling and build:
-
-```sh
-pnpm setup:upstream   # clones zfb at the pinned SHA, builds the zfb CLI, then pnpm build
-```
-
-`scripts/setup-upstream.mjs` clones the `zfb` sibling at the pinned SHA,
-installs its workspace deps, builds the `zfb` CLI into a project-local
-`.zfb-bin/`, then runs `pnpm install` + `pnpm build` here.
-
-Once the sibling exists and the `zfb` CLI is on `PATH`:
 
 ```sh
 pnpm install
@@ -83,38 +71,31 @@ pnpm preview    # zfb preview -> serves dist/
 pnpm typecheck  # zfb check
 ```
 
-> **Validate with `zfb build` / `zfb preview`, not `zfb dev`.** For CSS
-> Modules, `zfb build` output is fully correct (scoped class names in HTML
-> *and* matching scoped rules in the hashed CSS). The `zfb dev` CSS-serving
-> path may not yet emit the matching scoped rules.
+Both `zfb dev` and `zfb build` emit the scoped CSS Modules class names in
+HTML together with the matching scoped rules in the served/hashed CSS.
 
 ## Deployment
 
 `.github/workflows/deploy.yml` deploys `dist/` to the Cloudflare Pages
-project `zfb-example-corporate-website` on every push to `main`. CI clones
-the `zfb` sibling **inline** at the pinned SHA, builds the `zfb` CLI from
-cargo, runs `pnpm build`, and deploys with `wrangler`. It needs the repo
-secrets `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`.
+project `zfb-example-corporate-website` on every push to `main`. CI installs
+zfb from npm (`pnpm install`), runs `pnpm build`, and deploys with
+`wrangler`. It needs the repo secrets `CLOUDFLARE_ACCOUNT_ID` and
+`CLOUDFLARE_API_TOKEN`.
 
-## Post-merge pin-bump procedure
+Pull requests get a per-branch preview deploy at
+`https://<branch-slug>.zfb-example-corporate-website.pages.dev/` (slashes
+in the branch name become hyphens), with the URL posted as a PR comment.
 
-`framework-pins.json` currently pins `zfb.sha` to the **HEAD of the
-`base/demo-separation` branch** in the `zfb` repo:
+## Updating zfb
 
-```
-1a01628843286354c676813d8b63a52feb01cff8
-```
+`package.json` pins `@takazudo/zfb` and `@takazudo/zfb-runtime` to an
+exact version (the two must match — `zfb-runtime` declares an exact peer
+dependency on `zfb`). To move this demo to a newer zfb:
 
-After the Demo Separation epic PR (#319) merges `base/demo-separation` into
-`main` in the `zfb` repo, that branch becomes a dead branch and may be
-deleted, while `main` is the durable ref. At that point this repo must bump
-its pin:
+1. Pick the new version from the [`@takazudo/zfb` versions](https://www.npmjs.com/package/@takazudo/zfb?activeTab=versions).
+2. Update both versions in `package.json`, run `pnpm install`, and verify
+   with `pnpm build`.
+3. Commit (including `pnpm-lock.yaml`) and push — CI rebuilds and
+   re-deploys.
 
-1. Find the **merge commit SHA** on `zfb`'s `main` (the commit that merged
-   `base/demo-separation`).
-2. Replace `zfb.sha` in `framework-pins.json` with that `main` merge SHA.
-3. Commit the bump and push to `main` — CI re-clones `zfb` at the new SHA
-   and re-deploys.
-
-This keeps CI reproducible against a permanent ref. (Epic step S8 verifies
-and finalizes this bump.)
+Pinning exact versions keeps CI reproducible.
