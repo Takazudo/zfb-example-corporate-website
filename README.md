@@ -1,7 +1,8 @@
 # zfb-example-corporate-website
 
 A polished corporate marketing website built with [zfb](https://github.com/Takazudo/zudo-front-builder)
-and styled entirely with **CSS Modules** — no Tailwind.
+and authored entirely with **CSS Modules** — no Tailwind utilities anywhere
+in the source.
 
 **Live demo:** https://zfb-example-corporate-website.pages.dev/
 
@@ -17,7 +18,12 @@ stylesheet for design tokens and a light reset.
 - Component-scoped styling via `*.module.css` — class names are rewritten to
   scoped, file-stable identifiers at build time, so two components can both
   declare a `.card` class without colliding.
-- `zfb.config.ts` with `base: "/"` and Tailwind disabled.
+- `zfb.config.ts` with `base: "/"` and zfb defaults otherwise. Note: zfb's
+  compiled stylesheet ships its default Tailwind v4 preflight/theme layers
+  even though this demo authors no Tailwind — at the pinned zfb version,
+  `tailwind: { enabled: false }` would drop all authored CSS from the build
+  ([zfb#824](https://github.com/Takazudo/zudo-front-builder/issues/824)),
+  so the demo keeps the default.
 
 ## CSS Modules usage
 
@@ -75,6 +81,10 @@ project `zfb-example-corporate-website` on every push to `main`. CI installs
 zfb from npm (`pnpm install`), runs `pnpm build`, and deploys with
 `wrangler`. It needs the repo secrets `CLOUDFLARE_ACCOUNT_ID` and
 `CLOUDFLARE_API_TOKEN`.
+
+Pull requests get a per-branch preview deploy at
+`https://<branch-slug>.zfb-example-corporate-website.pages.dev/` (slashes
+in the branch name become hyphens), with the URL posted as a PR comment.
 
 ## Updating zfb
 

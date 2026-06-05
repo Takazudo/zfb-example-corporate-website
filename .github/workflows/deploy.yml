@@ -25,7 +25,9 @@ jobs:
   build-and-deploy:
     name: Build and deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Budget: pnpm install (cold ~200MB platform binary on cache miss) + build
+    # + up to 3 wrangler deploy attempts with 150s backoffs ≈ 11-13 min worst case.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
