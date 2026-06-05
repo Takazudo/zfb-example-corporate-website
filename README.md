@@ -47,34 +47,16 @@ styles/       global.css (design tokens + reset), css-modules.d.ts
 zfb.config.ts framework config (Preact, Tailwind disabled)
 ```
 
-## Sibling layout
+## Framework dependency
 
-This repo depends on the `zfb` framework via relative `file:` dependencies
-(`@takazudo/zfb` and `@takazudo/zfb-runtime`). It expects the `zfb` repo
-checked out as a **sibling directory**:
-
-```
-~/repos/zfb-ex/
-  zfb/                            <- the zfb framework repo (pinned SHA)
-  zfb-example-corporate-website/  <- this repo
-```
-
-The exact `zfb` commit this demo builds against is pinned in
-[`framework-pins.json`](./framework-pins.json).
+This repo depends on the `zfb` framework via the published npm packages
+[`@takazudo/zfb`](https://www.npmjs.com/package/@takazudo/zfb) and
+[`@takazudo/zfb-runtime`](https://www.npmjs.com/package/@takazudo/zfb-runtime),
+pinned to an exact prerelease version in `package.json`. `@takazudo/zfb`
+ships a prebuilt Rust binary per platform via npm optional dependencies —
+no cargo toolchain or sibling checkout required.
 
 ## Local development
-
-On a fresh checkout, bootstrap the sibling and build:
-
-```sh
-pnpm setup:upstream   # clones zfb at the pinned SHA, builds the zfb CLI, then pnpm build
-```
-
-`scripts/setup-upstream.mjs` clones the `zfb` sibling at the pinned SHA,
-installs its workspace deps, builds the `zfb` CLI into a project-local
-`.zfb-bin/`, then runs `pnpm install` + `pnpm build` here.
-
-Once the sibling exists and the `zfb` CLI is on `PATH`:
 
 ```sh
 pnpm install
@@ -91,20 +73,21 @@ pnpm typecheck  # zfb check
 ## Deployment
 
 `.github/workflows/deploy.yml` deploys `dist/` to the Cloudflare Pages
-project `zfb-example-corporate-website` on every push to `main`. CI clones
-the `zfb` sibling **inline** at the pinned SHA, builds the `zfb` CLI from
-cargo, runs `pnpm build`, and deploys with `wrangler`. It needs the repo
-secrets `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`.
+project `zfb-example-corporate-website` on every push to `main`. CI installs
+zfb from npm (`pnpm install`), runs `pnpm build`, and deploys with
+`wrangler`. It needs the repo secrets `CLOUDFLARE_ACCOUNT_ID` and
+`CLOUDFLARE_API_TOKEN`.
 
-## Updating the zfb pin
+## Updating zfb
 
-`framework-pins.json` pins `zfb.sha` to a commit on `main` in the `zfb`
-repo. To move this demo to a newer zfb:
+`package.json` pins `@takazudo/zfb` and `@takazudo/zfb-runtime` to an
+exact version (the two must match — `zfb-runtime` declares an exact peer
+dependency on `zfb`). To move this demo to a newer zfb:
 
-1. Pick the new commit SHA on `zfb`'s `main`.
-2. Replace `zfb.sha` in `framework-pins.json`.
-3. Re-run `pnpm setup:upstream` locally — it re-checkouts the sibling at
-   the new SHA, rebuilds the zfb CLI, and verifies with a full build.
-4. Commit and push — CI re-clones `zfb` at the new SHA and re-deploys.
+1. Pick the new version from the [`@takazudo/zfb` versions](https://www.npmjs.com/package/@takazudo/zfb?activeTab=versions).
+2. Update both versions in `package.json`, run `pnpm install`, and verify
+   with `pnpm build`.
+3. Commit (including `pnpm-lock.yaml`) and push — CI rebuilds and
+   re-deploys.
 
-Pinning a `main` SHA keeps CI reproducible against a permanent ref.
+Pinning exact versions keeps CI reproducible.
