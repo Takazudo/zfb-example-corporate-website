@@ -65,10 +65,8 @@ pnpm preview    # zfb preview -> serves dist/
 pnpm typecheck  # zfb check
 ```
 
-> **Validate with `zfb build` / `zfb preview`, not `zfb dev`.** For CSS
-> Modules, `zfb build` output is fully correct (scoped class names in HTML
-> *and* matching scoped rules in the hashed CSS). The `zfb dev` CSS-serving
-> path may not yet emit the matching scoped rules.
+Both `zfb dev` and `zfb build` emit the scoped CSS Modules class names in
+HTML together with the matching scoped rules in the served/hashed CSS.
 
 ## Deployment
 
