@@ -96,25 +96,15 @@ the `zfb` sibling **inline** at the pinned SHA, builds the `zfb` CLI from
 cargo, runs `pnpm build`, and deploys with `wrangler`. It needs the repo
 secrets `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`.
 
-## Post-merge pin-bump procedure
+## Updating the zfb pin
 
-`framework-pins.json` currently pins `zfb.sha` to the **HEAD of the
-`base/demo-separation` branch** in the `zfb` repo:
+`framework-pins.json` pins `zfb.sha` to a commit on `main` in the `zfb`
+repo. To move this demo to a newer zfb:
 
-```
-1a01628843286354c676813d8b63a52feb01cff8
-```
+1. Pick the new commit SHA on `zfb`'s `main`.
+2. Replace `zfb.sha` in `framework-pins.json`.
+3. Re-run `pnpm setup:upstream` locally — it re-checkouts the sibling at
+   the new SHA, rebuilds the zfb CLI, and verifies with a full build.
+4. Commit and push — CI re-clones `zfb` at the new SHA and re-deploys.
 
-After the Demo Separation epic PR (#319) merges `base/demo-separation` into
-`main` in the `zfb` repo, that branch becomes a dead branch and may be
-deleted, while `main` is the durable ref. At that point this repo must bump
-its pin:
-
-1. Find the **merge commit SHA** on `zfb`'s `main` (the commit that merged
-   `base/demo-separation`).
-2. Replace `zfb.sha` in `framework-pins.json` with that `main` merge SHA.
-3. Commit the bump and push to `main` — CI re-clones `zfb` at the new SHA
-   and re-deploys.
-
-This keeps CI reproducible against a permanent ref. (Epic step S8 verifies
-and finalizes this bump.)
+Pinning a `main` SHA keeps CI reproducible against a permanent ref.
