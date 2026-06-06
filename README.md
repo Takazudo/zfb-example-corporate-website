@@ -18,12 +18,12 @@ stylesheet for design tokens and a light reset.
 - Component-scoped styling via `*.module.css` — class names are rewritten to
   scoped, file-stable identifiers at build time, so two components can both
   declare a `.card` class without colliding.
-- `zfb.config.ts` with `base: "/"` and zfb defaults otherwise. Note: zfb's
-  compiled stylesheet ships its default Tailwind v4 preflight/theme layers
-  even though this demo authors no Tailwind — at the pinned zfb version,
-  `tailwind: { enabled: false }` would drop all authored CSS from the build
-  ([zfb#824](https://github.com/Takazudo/zudo-front-builder/issues/824)),
-  so the demo keeps the default.
+- `zfb.config.ts` with `tailwind: { enabled: false }` — the compiled
+  stylesheet contains only this demo's authored CSS (global tokens +
+  scoped module rules), no Tailwind preflight/theme layers. This requires
+  zfb >= `0.1.0-next.31`; earlier versions dropped all authored CSS when
+  the flag was set
+  ([zfb#824](https://github.com/Takazudo/zudo-front-builder/issues/824)).
 
 ## CSS Modules usage
 
@@ -40,8 +40,10 @@ export default function Hero() {
 ```
 
 `styles.hero` resolves at build time to the scoped class name (e.g.
-`KdPA9G_hero`) that appears in both the rendered HTML and the hashed
-`dist/assets/styles-<hash>.css`.
+`QAAyqq_hero`) that appears in both the rendered HTML and the hashed
+`dist/assets/styles-<hash>.css`. The scope hash is derived from the
+project-relative module path, so byte-identical sources build to identical
+class names on any machine.
 
 ## Repository layout
 
