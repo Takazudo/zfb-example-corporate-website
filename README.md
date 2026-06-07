@@ -92,12 +92,19 @@ in the branch name become hyphens), with the URL posted as a PR comment.
 
 `package.json` pins `@takazudo/zfb` and `@takazudo/zfb-runtime` to an
 exact version (the two must match — `zfb-runtime` declares an exact peer
-dependency on `zfb`). To move this demo to a newer zfb:
+dependency on `zfb`). This project tracks the **`next` dist-tag** (the zfb
+prerelease line), never `latest`. To move this demo to a newer zfb:
 
-1. Pick the new version from the [`@takazudo/zfb` versions](https://www.npmjs.com/package/@takazudo/zfb?activeTab=versions).
+1. Pick the new version from the `next` dist-tag:
+   `npm view @takazudo/zfb dist-tags.next`.
 2. Update both versions in `package.json`, run `pnpm install`, and verify
    with `pnpm build`.
 3. Commit (including `pnpm-lock.yaml`) and push — CI rebuilds and
    re-deploys.
 
 Pinning exact versions keeps CI reproducible.
+
+The `/l-handle-zfb-update` Claude Code skill
+(`.claude/skills/l-handle-zfb-update/SKILL.md`) automates this process,
+including a review of every intermediate upstream release note before
+the bump.
