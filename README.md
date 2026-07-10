@@ -88,6 +88,20 @@ Pull requests get a per-branch preview deploy at
 `https://<branch-slug>.zfb-example-corporate-website.pages.dev/` (slashes
 in the branch name become hyphens), with the URL posted as a PR comment.
 
+### Cloudflare API token permissions
+
+The `CLOUDFLARE_API_TOKEN` repo secret is an **Account**-scoped custom token
+(Cloudflare dashboard → My Profile → API Tokens → Create Custom Token) with
+these permissions:
+
+- **Cloudflare Pages** — Edit
+- **Account Settings** — Read
+
+Set **Account Resources → Include → (your account)**. No Zone permissions are
+needed — this repo deploys to a `*.pages.dev` host, not a custom domain. A
+single token can be shared across all `zfb-example-*` repos if it carries the
+union of every repo's permissions.
+
 ## Updating zfb
 
 `package.json` pins `@takazudo/zfb` and `@takazudo/zfb-runtime` to an
