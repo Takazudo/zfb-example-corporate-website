@@ -88,6 +88,10 @@ Pull requests get a per-branch preview deploy at
 `https://<branch-slug>.zfb-example-corporate-website.pages.dev/` (slashes
 in the branch name become hyphens), with the URL posted as a PR comment.
 
+For an ordered "from zero to deployed" walkthrough — minting the API token,
+setting the secrets, triggering and verifying — see
+[`docs/cloudflare-setup.md`](docs/cloudflare-setup.md).
+
 ### Cloudflare API token permissions
 
 The `CLOUDFLARE_API_TOKEN` repo secret is an **Account**-scoped custom token
