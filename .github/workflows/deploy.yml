@@ -145,6 +145,11 @@ jobs:
       # so the custom domain keeps serving main. --preview-alias gives the version
       # a stable per-PR hostname; it only routes because wrangler.toml sets both
       # workers_dev and preview_urls to true.
+      #
+      # Bootstrap order: the Worker is born from the first `wrangler deploy` on
+      # main, so previews only work once that has run at least once. On the PR
+      # that introduces this workflow there is no Worker yet and this step may
+      # fail — that is a one-time migration artifact, not a config error.
       - name: Upload preview version
         id: preview
         if: steps.preflight.outputs.ready == 'true'
