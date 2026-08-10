@@ -1,13 +1,13 @@
 # Cloudflare setup — from zero to deployed
 
-An ordered walkthrough for wiring this repo up to Cloudflare Pages, start to
-finish.
+An ordered walkthrough for wiring this repo up to Cloudflare Workers static
+assets, start to finish.
 
-> **This repo is already deployed.** It is live at
-> https://zfb-example-corporate-website.pages.dev/ and its two GitHub Actions
-> secrets are already set, so steps 1 and 2 are done. Follow them only when you
-> are rotating the API token, moving to a different Cloudflare account, or
-> recreating the repo from scratch. Steps 3 and 4 are always safe to run.
+> **Migrated from Cloudflare Pages.** This repo previously deployed to the Pages
+> project `zfb-example-corporate-website` at `*.pages.dev`. It now deploys as a
+> **Worker** serving static assets, on the custom domain
+> https://zfb-example-corporate-website.takazudomodular.com/. The old Pages
+> project is no longer written to and can be deleted from the dashboard.
 
 The deployment itself is described in the README's
 [Deployment](../README.md#deployment) section; this document is the
@@ -18,20 +18,24 @@ step-by-step setup path behind it.
 `.github/workflows/deploy.yml` runs on every push to `main` and on every pull
 request targeting `main`. It installs dependencies with
 `pnpm install --frozen-lockfile`, runs `pnpm build`, and deploys the resulting
-`dist/` directory to the Cloudflare Pages project
-**`zfb-example-corporate-website`** with `wrangler`.
+`dist/` directory with `wrangler deploy`.
 
-There is nothing to provision by hand: the workflow's "Ensure Cloudflare Pages
-project exists" step runs `wrangler pages project create` idempotently, so the
-Pages project is created on the first successful run and the step is a no-op
-afterwards. No D1, KV, or Worker secrets are involved.
+There is nothing to provision by hand. `wrangler deploy` is create-and-update in
+one: the first successful run creates the Worker named in `wrangler.toml`, and
+later runs update it. **Do not create the Worker from the Cloudflare dashboard
+wizard** — that produces either an orphan Worker unrelated to this repo, or a
+competing Cloudflare git-build pipeline that fights this workflow.
+
+This site is pure SSG, so `wrangler.toml` declares an **assets-only** Worker: an
+`[assets]` table with no `main` key. No D1, KV, or Worker secrets are involved.
 
 ## 1. Create (or reuse) the Cloudflare API token
 
-All nine `zfb-example-*` repos deploy to the **same Cloudflare account** and
-share **one account-scoped token**. If you already minted it for another repo
-in the family, reuse it here — there is nothing repo-specific about it. The
-family-wide guide, including the union of permissions every repo needs, is at
+All `zfb-example-*` repos deploy to the **same Cloudflare account** and share
+**one token**. If you already minted it for another repo in the family, reuse it
+here — but confirm it carries the Zone permission below, which the Pages-era
+token did not need. The family-wide guide, including the union of permissions
+every repo needs, is at
 [cloudflare-shared-token-and-env-setup.md](https://github.com/Takazudo/zfbex-tweaker/blob/main/docs/cloudflare-shared-token-and-env-setup.md).
 
 To mint a token that covers **this repo only**: Cloudflare dashboard → **My
@@ -40,13 +44,20 @@ permissions:
 
 | Type | Permission | Access |
 | --- | --- | --- |
-| Account | **Cloudflare Pages** | Edit |
+| Account | **Workers Scripts** | Edit |
 | Account | **Account Settings** | Read |
+| Zone | **Workers Routes** | Edit |
 
 - **Account Resources**: Include → *your account*.
-- **Zone Resources**: none. This repo deploys to a `*.pages.dev` host, not a
-  custom domain, so no Zone permission is required.
+- **Zone Resources**: Include → `takazudomodular.com`.
 - **Client IP / TTL**: leave at the defaults.
+
+:warning: **The Zone permission is the one that is easy to miss.** The dashboard's
+"Edit Cloudflare Workers" token template does *not* include Zone · Workers
+Routes. Without it, `wrangler deploy` uploads the script successfully and then
+fails attaching the `[[routes]]` custom domain — the site is reachable on
+`*.workers.dev` but `zfb-example-corporate-website.takazudomodular.com` never
+starts resolving.
 
 Cloudflare shows the token value only once — copy it before leaving the page.
 You also need your **Account ID** (dashboard → any domain → right sidebar, or
@@ -79,7 +90,7 @@ recent workflow run:
 
 ```sh
 gh run list --repo Takazudo/zfb-example-corporate-website \
-  --workflow "Deploy to Cloudflare Pages" --limit 1
+  --workflow "Deploy" --limit 1
 gh run rerun <run-id> --repo Takazudo/zfb-example-corporate-website
 ```
 
@@ -89,51 +100,74 @@ Watch it to completion:
 gh run watch <run-id> --repo Takazudo/zfb-example-corporate-website
 ```
 
+To validate the config without deploying — and without any credentials at all:
+
+```sh
+pnpm exec wrangler deploy --dry-run
+```
+
 ## 4. Verify
 
-- **Production**: https://zfb-example-corporate-website.pages.dev/ should
-  serve the freshly built page. A quick check from the shell:
+- **Automatic**: the deploy job runs `pnpm smoke` immediately after
+  `wrangler deploy`. It checks the live custom domain for HTTP 200 over valid
+  TLS, this site's content marker, the hashed stylesheet, and a 404 on an
+  unknown path. While the hostname does not resolve yet it self-skips with exit
+  0 and a notice rather than failing. Run it locally the same way:
 
   ```sh
-  curl -sI https://zfb-example-corporate-website.pages.dev/ | head -1
+  pnpm smoke
   ```
 
-- **Pull request previews**: every PR against `main` gets its own deploy at
-  `https://<branch-slug>.zfb-example-corporate-website.pages.dev/`, where the
-  slug is the branch name with slashes replaced by hyphens. The workflow posts
-  (and updates) a PR comment carrying the URL.
+- **Production**: https://zfb-example-corporate-website.takazudomodular.com/
+  should serve the freshly built page.
+
+  ```sh
+  curl -sI https://zfb-example-corporate-website.takazudomodular.com/ | head -1
+  ```
+
+- **Pull request previews**: every PR against `main` uploads a non-production
+  version aliased `pr-<N>`, live at
+  `https://pr-<N>-zfb-example-corporate-website.<subdomain>.workers.dev/`, with
+  the URL posted (and updated) as a PR comment. Production keeps serving `main`
+  the whole time.
 - **Cloudflare dashboard**: Workers & Pages → `zfb-example-corporate-website`
-  lists every deployment with its commit hash.
+  lists every version and deployment.
 
 ## Troubleshooting
 
+**The deploy fails on the route / custom domain step.** The token is missing
+**Zone · Workers Routes · Edit**, or its Zone Resources do not include
+`takazudomodular.com`. The script upload before it usually succeeded, so the
+Worker exists and `*.workers.dev` works while the custom domain does not. Add
+the permission and re-run — no code change is needed.
+
 **`Authentication error [code: 10000]` on the deploy step.** The token is
-missing, expired, or lacks **Cloudflare Pages · Edit**. Re-check the secret
-value and the token's permissions, then re-run the workflow — a token edited
-in the Cloudflare dashboard keeps the same value, so the GitHub secret only
-needs updating if you minted a new token.
+missing, expired, or lacks **Workers Scripts · Edit**. Re-check the secret value
+and the token's permissions, then re-run. A token edited in the Cloudflare
+dashboard keeps the same value, so the GitHub secret only needs updating if you
+minted a new token.
 
-**`Unable to retrieve account` or the project is not found.** Usually a wrong
-`CLOUDFLARE_ACCOUNT_ID`, or a token whose **Account Resources** do not include
-that account. Verify with `wrangler whoami` locally using the same token.
+**`Unable to retrieve account`.** Usually a wrong `CLOUDFLARE_ACCOUNT_ID`, or a
+token whose **Account Resources** do not include that account. Verify with
+`wrangler whoami` locally using the same token.
 
-**"Project create failed with unexpected error".** The idempotent create step
-only tolerates errors that look like "already exists" (Cloudflare code
-`8000077`). Anything else — most often a permission problem — fails the job
-deliberately rather than deploying into an unknown state. Read the printed
-wrangler output; it names the cause.
+**The preview URL prints but returns `error code: 1042`.** The workers.dev
+hostname is private. `wrangler.toml` must have **both** `workers_dev = true` and
+`preview_urls = true`; `preview_urls` defaults to *match* `workers_dev`, so it is
+set explicitly to keep previews alive if `workers_dev` is ever turned off.
 
-**The deploy step fails on a pull request from a fork.** GitHub does not expose
-repo secrets to fork-based pull requests, so `CLOUDFLARE_API_TOKEN` is empty
-and the deploy cannot authenticate. This is expected; preview deploys only work
-for branches pushed to this repo.
+**wrangler warns "Unexpected fields found in assets field".** A top-level key
+(`workers_dev`, `preview_urls`, `routes`) has drifted *below* the `[assets]`
+table. In TOML every key after a table header belongs to that table, so wrangler
+silently ignores it. Move it back above `[assets]`.
 
-**`pnpm install --frozen-lockfile` fails.** `package.json` and
-`pnpm-lock.yaml` are out of sync. Run `pnpm install` locally and commit the
-updated lockfile.
+**The deploy step is skipped with a notice.** `CLOUDFLARE_API_TOKEN` is unset.
+This is expected on pull requests from forks — GitHub does not expose repo
+secrets to them — and on a fresh clone that has not been wired up yet.
 
-**The deploy retried three times and gave up.** The workflow retries
-`wrangler pages deploy` up to three times with 150-second backoffs, so a red
-job after all three usually means a persistent problem (auth, permissions, a
-Cloudflare incident) rather than a transient blip. Check
-[Cloudflare status](https://www.cloudflarestatus.com/) before digging further.
+**The smoke test is skipped with a notice.** The custom domain does not resolve
+yet. Either the deploy has not attached it (see the first entry above) or DNS is
+still propagating; re-run after a minute.
+
+**`pnpm install --frozen-lockfile` fails.** `package.json` and `pnpm-lock.yaml`
+are out of sync. Run `pnpm install` locally and commit the updated lockfile.

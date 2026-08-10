@@ -4,7 +4,7 @@ A polished corporate marketing website built with [zfb](https://github.com/Takaz
 and authored entirely with **CSS Modules** — no Tailwind utilities anywhere
 in the source.
 
-**Live demo:** https://zfb-example-corporate-website.pages.dev/
+**Live demo:** https://zfb-example-corporate-website.takazudomodular.com/
 
 It is one of three standalone zfb demo repos produced by the zfb
 "Demo Separation" epic. This one showcases the CSS-Modules styling path:
@@ -78,33 +78,69 @@ HTML together with the matching scoped rules in the served/hashed CSS.
 
 ## Deployment
 
-`.github/workflows/deploy.yml` deploys `dist/` to the Cloudflare Pages
-project `zfb-example-corporate-website` on every push to `main`. CI installs
-zfb from npm (`pnpm install`), runs `pnpm build`, and deploys with
-`wrangler`. It needs the repo secrets `CLOUDFLARE_ACCOUNT_ID` and
-`CLOUDFLARE_API_TOKEN`.
+`.github/workflows/deploy.yml` deploys `dist/` to **Cloudflare Workers static
+assets** — the Worker `zfb-example-corporate-website`, served at
+https://zfb-example-corporate-website.takazudomodular.com/. CI installs zfb
+from npm (`pnpm install`), runs `pnpm build`, and deploys with `wrangler`. It
+needs the repo secrets `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`.
 
-Pull requests get a per-branch preview deploy at
-`https://<branch-slug>.zfb-example-corporate-website.pages.dev/` (slashes
-in the branch name become hyphens), with the URL posted as a PR comment.
+Because this site is pure SSG — no `@takazudo/zfb-adapter-cloudflare`, no
+server bundle — `wrangler.toml` declares an **assets-only** Worker: it has an
+`[assets]` table but deliberately no `main`. Cloudflare serves `dist/` straight
+from the edge and no Worker code runs. The custom domain is attached by the
+`[[routes]]` entry with `custom_domain = true`, which makes Cloudflare manage
+the DNS record and TLS certificate for that hostname.
+
+The workflow has three jobs:
+
+- **build** — typecheck and build. Runs on every push and PR, needs no
+  credentials, so a fresh clone or fork is green immediately.
+- **deploy** — push to `main` only: `wrangler deploy`, then `pnpm smoke`.
+- **preview** — pull requests only: `wrangler versions upload --preview-alias
+  pr-<N>` publishes the PR's build as a non-production version at
+  `https://pr-<N>-zfb-example-corporate-website.<subdomain>.workers.dev/`,
+  posted as a PR comment. Production keeps serving `main` throughout.
+
+Both Cloudflare-touching jobs self-skip when `CLOUDFLARE_API_TOKEN` is unset,
+so fork PRs and un-provisioned clones report a notice instead of a red job.
 
 For an ordered "from zero to deployed" walkthrough — minting the API token,
 setting the secrets, triggering and verifying — see
 [`docs/cloudflare-setup.md`](docs/cloudflare-setup.md).
 
+### Post-deploy smoke test
+
+`pnpm smoke` (`scripts/smoke.mjs`, plain Node — no test framework) runs after
+every production deploy and checks the live custom domain: HTTP 200 over valid
+TLS, HTML carrying this site's content marker, the hashed stylesheet resolving,
+and an unknown path returning 404. Only a request to the real hostname can
+prove the custom domain is actually attached; no build-time or unit test can
+see that.
+
+While the hostname does not resolve yet, the script **self-skips** with exit 0
+and a GitHub Actions notice, so the deploy is not red before Cloudflare is
+wired up. A hostname that does resolve but serves the wrong thing is a real
+failure. Point it elsewhere with `SMOKE_URL=... pnpm smoke`.
+
 ### Cloudflare API token permissions
 
-The `CLOUDFLARE_API_TOKEN` repo secret is an **Account**-scoped custom token
-(Cloudflare dashboard → My Profile → API Tokens → Create Custom Token) with
-these permissions:
+The `CLOUDFLARE_API_TOKEN` repo secret is a custom token (Cloudflare dashboard
+→ My Profile → API Tokens → Create Custom Token) with these permissions:
 
-- **Cloudflare Pages** — Edit
-- **Account Settings** — Read
+| Type | Permission | Access |
+| --- | --- | --- |
+| Account | **Workers Scripts** | Edit |
+| Account | **Account Settings** | Read |
+| Zone | **Workers Routes** | Edit |
 
-Set **Account Resources → Include → (your account)**. No Zone permissions are
-needed — this repo deploys to a `*.pages.dev` host, not a custom domain. A
-single token can be shared across all `zfb-example-*` repos if it carries the
-union of every repo's permissions.
+Set **Account Resources → Include → (your account)** and **Zone Resources →
+Include → `takazudomodular.com`**.
+
+The Zone permission is what attaches the custom domain. Without it the script
+upload succeeds and the deploy then fails on the route step — the site stays
+reachable on `*.workers.dev` but the custom domain is never created. A single
+token can be shared across all `zfb-example-*` repos if it carries the union of
+every repo's permissions.
 
 ## Updating zfb
 
