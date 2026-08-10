@@ -26,9 +26,12 @@ const RETRY_DELAY_MS = 6_000;
 // propagates, so these are retried rather than reported immediately.
 const DNS_ERROR_CODES = new Set(["ENOTFOUND", "EAI_AGAIN", "ENODATA"]);
 
+// fetch wraps the underlying network error, so the code that identifies a DNS
+// failure sits somewhere down the `cause` chain rather than on the thrown error.
+// The depth bound guards against a self-referential chain.
 function errorCodes(error) {
   const codes = [];
-  for (let e = error; e; e = e.cause) {
+  for (let e = error, depth = 0; e && depth < 10; e = e.cause, depth++) {
     if (e.code) codes.push(e.code);
   }
   return codes;
@@ -118,7 +121,9 @@ async function main() {
   // This demo has a single page (pages/index.tsx), so the hashed stylesheet is
   // the only real inner route. Its name is content-hashed, so it is discovered
   // from the served HTML rather than hardcoded.
-  const styleHref = html.match(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/)?.[1];
+  const styleLink = html.match(/<link\b[^>]*\brel="stylesheet"[^>]*>/)
+    ?? html.match(/<link\b[^>]*\.css"[^>]*>/);
+  const styleHref = styleLink?.[0].match(/\bhref="([^"]+)"/)?.[1];
   if (!styleHref) {
     fail("no stylesheet <link> found in the served HTML — the build output looks wrong.");
   }
