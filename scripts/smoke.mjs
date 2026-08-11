@@ -6,12 +6,20 @@
 // `Zone · Workers Routes · Edit` on the API token). No unit or build-time test
 // can see that; only a request to the real hostname can. Hence this script.
 //
-// It SELF-SKIPS (exit 0) while the hostname does not resolve yet, so the repo
-// does not show a red deploy before Cloudflare is fully wired up. Anything else
-// — wrong content, 5xx, TLS failure on a hostname that DOES resolve — is a real
+// By default it SELF-SKIPS (exit 0) while the hostname is not reachable yet, so
+// the repo does not show a red deploy before Cloudflare is fully wired up.
+// Anything else — wrong content, 5xx, an expired certificate — is a real
 // failure and exits non-zero.
+//
+// Once the domain is confirmed live, set SMOKE_REQUIRE_LIVE=1 (the deploy
+// workflow does) and every self-skip becomes a hard failure instead. The skip
+// path stays in the code for a site that has not been wired up yet.
+//
+// Override the target with argv[1] or SMOKE_URL, e.g.
+//   node scripts/smoke.mjs https://expired.badssl.com/
 
-const BASE_URL = process.env.SMOKE_URL
+const BASE_URL = process.argv[2]
+  ?? process.env.SMOKE_URL
   ?? "https://zfb-example-corporate-website.takazudomodular.com/";
 
 // Unique to this corporate demo's rendered output (dist/index.html <title> and
@@ -22,26 +30,74 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_ATTEMPTS = 5;
 const RETRY_DELAY_MS = 6_000;
 
-// A freshly attached custom domain briefly fails DNS resolution before it
-// propagates, so these are retried rather than reported immediately.
-const DNS_ERROR_CODES = new Set(["ENOTFOUND", "EAI_AGAIN", "ENODATA"]);
+const REQUIRE_LIVE = ["1", "true"]
+  .includes((process.env.SMOKE_REQUIRE_LIVE ?? "").trim().toLowerCase());
 
-// fetch wraps the underlying network error, so the code that identifies a DNS
-// failure sits somewhere down the `cause` chain rather than on the thrown error.
-// The depth bound guards against a self-referential chain.
+// A custom domain that Cloudflare has only just attached is unreachable in a
+// few distinguishable ways before it settles. Each is "not wired up yet", not
+// an outage, so each is retried and then skipped:
+//
+//   DNS      — the record does not exist or does not answer yet.
+//   NETWORK  — Cloudflare publishes the AAAA record before the A record, and
+//              GitHub runners have no IPv6 route, so during that window every
+//              candidate address is unreachable.
+//   TLS      — the hostname already resolves to the edge but its certificate
+//              has not been issued yet, so the handshake presents one that does
+//              not cover this hostname.
+const NOT_READY_ERROR_CODES = new Set([
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ENODATA",
+  "ENETUNREACH",
+  "EHOSTUNREACH",
+  "ERR_TLS_CERT_ALTNAME_INVALID",
+]);
+
+// An expired certificate is never a propagation state: a freshly issued edge
+// certificate cannot already be expired, so this can only mean an established
+// domain broke — exactly the outage this script exists to catch. It must fail
+// even when a not-ready code appears alongside it.
+const OUTAGE_ERROR_CODES = new Set(["CERT_HAS_EXPIRED"]);
+
+// fetch wraps the underlying network error, so the code that identifies the
+// failure sits below the thrown error rather than on it. Two shapes have to be
+// walked. The usual one is the `cause` chain. The other is Happy Eyeballs,
+// which races every resolved address and reports the pile-up as an
+// AggregateError that carries no code of its own — the real per-address codes
+// (ENETUNREACH during the IPv6-only window) hang off `.errors[]`. Walking only
+// `cause` misses those entirely.
+//
+// Codes are deduplicated — Happy Eyeballs reports the same code once per
+// resolved address, and repeating it adds nothing to the log line. The seen set
+// plus the visit bound guard against a self-referential chain.
 function errorCodes(error) {
-  const codes = [];
-  for (let e = error, depth = 0; e && depth < 10; e = e.cause, depth++) {
-    if (e.code) codes.push(e.code);
+  const codes = new Set();
+  const seen = new Set();
+  const queue = [error];
+
+  for (let visits = 0; queue.length > 0 && visits < 50; visits++) {
+    const e = queue.shift();
+    if (!e || typeof e !== "object" || seen.has(e)) continue;
+    seen.add(e);
+    if (e.code) codes.add(e.code);
+    if (e.cause) queue.push(e.cause);
+    if (Array.isArray(e.errors)) queue.push(...e.errors);
   }
-  return codes;
+
+  return [...codes];
 }
 
-const isDnsError = (error) => errorCodes(error).some((c) => DNS_ERROR_CODES.has(c));
+const hasCode = (error, codes) => errorCodes(error).some((c) => codes.has(c));
+
+const isOutage = (error) => hasCode(error, OUTAGE_ERROR_CODES);
+const isNotReady = (error) => !isOutage(error) && hasCode(error, NOT_READY_ERROR_CODES);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function skip(reason) {
+  if (REQUIRE_LIVE) {
+    fail(`${reason}\nSMOKE_REQUIRE_LIVE is set, so this site must be live — not skipping.`);
+  }
   console.log(`::notice::Smoke test skipped — ${reason}`);
   process.exit(0);
 }
@@ -78,25 +134,32 @@ async function fetchRoot() {
       }
     } catch (error) {
       lastError = error;
-      const detail = isDnsError(error) ? "hostname does not resolve" : error.message;
+      const codes = errorCodes(error);
+      const detail = codes.length > 0 ? `${error.message} (${codes.join(", ")})` : error.message;
       console.log(`Attempt ${attempt}/${MAX_ATTEMPTS}: ${detail}${more ? ", retrying..." : ""}`);
     }
 
     if (more) await sleep(RETRY_DELAY_MS);
   }
 
-  if (isDnsError(lastError)) {
+  if (isNotReady(lastError)) {
     skip(
-      `${BASE_URL} does not resolve yet. The custom domain is not attached — this is expected `
-      + "until the Cloudflare API token carries Zone · Workers Routes · Edit and a deploy has run.",
+      `${BASE_URL} is not reachable yet (${errorCodes(lastError).join(", ")}). The custom domain `
+      + "looks like it is still propagating — DNS, an AAAA record published ahead of the A record, "
+      + "or the edge certificate can each lag a fresh deploy. This is also expected until the "
+      + "Cloudflare API token carries Zone · Workers Routes · Edit and a deploy has run.",
     );
   }
 
-  fail(`${BASE_URL} unreachable after ${MAX_ATTEMPTS} attempts: ${lastError?.message}`);
+  const codes = errorCodes(lastError);
+  fail(
+    `${BASE_URL} unreachable after ${MAX_ATTEMPTS} attempts: ${lastError?.message}`
+    + (codes.length > 0 ? ` (${codes.join(", ")})` : ""),
+  );
 }
 
 async function main() {
-  console.log(`Smoke testing ${BASE_URL}`);
+  console.log(`Smoke testing ${BASE_URL}${REQUIRE_LIVE ? " (SMOKE_REQUIRE_LIVE — skips are failures)" : ""}`);
 
   const root = await fetchRoot();
 
