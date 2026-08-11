@@ -100,10 +100,15 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler deploy
       # Only a request to the real hostname can prove the custom domain is
-      # attached — no build-time or unit test can see that. Self-skips (exit 0)
-      # while the hostname does not resolve yet.
+      # attached — no build-time or unit test can see that.
+      #
+      # The custom domain is live, so SMOKE_REQUIRE_LIVE turns the script's
+      # self-skip path into a hard failure: an unreachable site must go red here
+      # rather than pass quietly. Drop this env if the domain is ever detached.
       - name: Smoke test the live site
         if: steps.preflight.outputs.ready == 'true'
+        env:
+          SMOKE_REQUIRE_LIVE: "1"
         run: pnpm smoke
 
   preview:
