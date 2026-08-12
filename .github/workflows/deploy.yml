@@ -1,133 +1,206 @@
-# Deploy workflow for zfb-example-corporate-website (Cloudflare Pages).
+# Cloudflare Workers (static assets) deploy for this zfb example.
 #
-# Installs zfb from npm (@takazudo/zfb ships a prebuilt Rust binary per
-# platform via optional dependencies — no cargo toolchain needed), runs
-# `pnpm build`, and deploys `dist/`.
-name: Deploy to Cloudflare Pages
+#   build   — always runs (push + PR): install, typecheck (`zfb check`), build
+#             (`zfb build`). This is the credential-free gate, so a fresh clone
+#             or fork is green immediately.
+#   deploy  — push to `main` only: `wrangler deploy`, then the post-deploy smoke
+#             test against the custom domain. SELF-SKIPS when
+#               * secrets.CLOUDFLARE_API_TOKEN is unset, or
+#               * wrangler.toml still holds a REPLACE_WITH_* placeholder.
+#             So the repo never shows a red deploy before Cloudflare is wired up.
+#   preview — pull requests only: uploads a non-production version and posts its
+#             preview URL as a PR comment. Self-skips the same way (fork PRs get
+#             no secrets, so they skip rather than fail).
+#
+# Enable deploys by adding, in repo Settings -> Secrets and variables -> Actions:
+#   CLOUDFLARE_API_TOKEN   token with Account · Workers Scripts: Edit
+#                          (+ Account Settings: Read) AND
+#                          Zone · Workers Routes: Edit — the Zone permission is
+#                          what attaches the custom domain in wrangler.toml.
+#                          Without it the upload succeeds and the route step
+#                          fails. See docs/cloudflare-setup.md.
+#   CLOUDFLARE_ACCOUNT_ID  target Cloudflare account id
+name: Deploy
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
+
+# PR runs are superseded by the next push, but a production deploy must never be
+# cancelled mid-flight — two pushes in quick succession should both land, in order.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
-  pull-requests: write
-
-concurrency:
-  group: deploy-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
-    name: Build and deploy
+  build:
+    name: Build (typecheck + zfb build)
     runs-on: ubuntu-latest
-    # Budget: pnpm install (cold ~200MB platform binary on cache miss) + build
-    # + up to 3 wrangler deploy attempts with 150s backoffs ≈ 11-13 min worst case.
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - name: Setup pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: pnpm
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Verify zfb CLI
-        run: pnpm exec zfb --version
-
+      - name: Typecheck
+        run: pnpm typecheck
       - name: Build
         run: pnpm build
 
-      - name: Install wrangler
-        run: npm install -g wrangler@4
-
-      - name: Compute deploy branch slug
-        id: branch
+  deploy:
+    name: Deploy to Cloudflare Workers
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm build
+      - name: Preflight — is Cloudflare configured?
+        id: preflight
         env:
-          GITHUB_HEAD_REF_VAL: ${{ github.head_ref }}
-          GITHUB_REF_NAME_VAL: ${{ github.ref_name }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            # Cloudflare Pages branch names cannot contain slashes; replace with hyphens.
-            DEPLOY_BRANCH=$(echo "${GITHUB_HEAD_REF_VAL}" | tr '/' '-')
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN is not set — skipping deploy. Add it and CLOUDFLARE_ACCOUNT_ID in repo Settings to enable deploys."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif grep -q "REPLACE_WITH" wrangler.toml; then
+            echo "::notice::wrangler.toml still has a REPLACE_WITH_* placeholder — provision the resource, commit the real id, then deploy will run."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
           else
-            DEPLOY_BRANCH="main"
+            echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
-          echo "deploy_branch=${DEPLOY_BRANCH}" >> "$GITHUB_OUTPUT"
-
-      - name: Ensure Cloudflare Pages project exists
+      - name: Deploy
+        if: steps.preflight.outputs.ready == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          # Idempotent: create on first run, no-op on subsequent runs.
-          # wrangler@4 no longer auto-creates the project on `pages deploy`.
-          out=$(wrangler pages project create zfb-example-corporate-website \
-            --production-branch=main 2>&1) && rc=0 || rc=$?
-          echo "$out"
-          if [ "$rc" -eq 0 ]; then
-            echo "Project created."
-          elif echo "$out" | grep -qE "already exists|8000077|duplicate"; then
-            echo "Project already exists — continuing."
-          else
-            echo "Project create failed with unexpected error."
-            exit "$rc"
-          fi
+        run: pnpm exec wrangler deploy
+      # Only a request to the real hostname can prove the custom domain is
+      # attached — no build-time or unit test can see that.
+      #
+      # The custom domain is live, so SMOKE_REQUIRE_LIVE turns the script's
+      # self-skip path into a hard failure: an unreachable site must go red here
+      # rather than pass quietly. Drop this env if the domain is ever detached.
+      - name: Smoke test the live site
+        if: steps.preflight.outputs.ready == 'true'
+        env:
+          SMOKE_REQUIRE_LIVE: "1"
+        run: pnpm smoke
 
-      - name: Deploy to Cloudflare Pages
-        id: deploy
+  preview:
+    name: Preview deploy
+    needs: build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm build
+      - name: Preflight — is Cloudflare configured?
+        id: preflight
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          # Fork PRs get no secrets, so this skips instead of failing.
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN is not set — skipping preview deploy."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      # `versions upload` publishes a version WITHOUT promoting it to production,
+      # so the custom domain keeps serving main. --preview-alias gives the version
+      # a stable per-PR hostname; it only routes because wrangler.toml sets both
+      # workers_dev and preview_urls to true.
+      #
+      # Bootstrap order: `versions upload` creates the Worker if it does not exist,
+      # but a Worker that has never had a production deploy has its workers.dev
+      # subdomain disabled, and Cloudflare only emits preview URLs when it is
+      # enabled. So on the very first PR the upload succeeds with no preview URL;
+      # the first `wrangler deploy` on main applies workers_dev / preview_urls from
+      # wrangler.toml and previews work from then on. Missing URL is a notice, not
+      # a failure — the upload is the work that matters.
+      - name: Upload preview version
+        id: preview
+        if: steps.preflight.outputs.ready == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          DEPLOY_BRANCH: ${{ steps.branch.outputs.deploy_branch }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # Makes wrangler additionally emit machine-readable NDJSON, so the URL
+          # can be read from a stable field instead of scraped from log prose.
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.json
         run: |
-          for attempt in 1 2 3; do
-            echo "Deploy attempt $attempt/3..."
-            if wrangler pages deploy dist \
-              --project-name=zfb-example-corporate-website \
-              --branch="${DEPLOY_BRANCH}" \
-              --commit-hash="${GITHUB_SHA}" \
-              --commit-message="Deploy: ${GITHUB_SHA}"; then
-              echo "Deploy succeeded on attempt $attempt"
-              if [ "${DEPLOY_BRANCH}" = "main" ]; then
-                echo "deploy_url=https://zfb-example-corporate-website.pages.dev/" >> "$GITHUB_OUTPUT"
-              else
-                echo "deploy_url=https://${DEPLOY_BRANCH}.zfb-example-corporate-website.pages.dev/" >> "$GITHUB_OUTPUT"
-              fi
-              exit 0
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "Deploy failed, retrying in 150 seconds..."
-              sleep 150
-            fi
-          done
-          echo "Deploy failed after 3 attempts"
-          exit 1
-
-      - name: Comment on PR
-        if: github.event_name == 'pull_request' && steps.deploy.outcome == 'success'
+          set -o pipefail
+          pnpm exec wrangler versions upload \
+            --preview-alias "pr-${PR_NUMBER}" 2>&1 | tee upload.log
+          # The account subdomain is not knowable from the repo, so the URL has to
+          # come from wrangler. Prefer its structured output — the human-readable
+          # "Version Preview Alias URL:" line is free to change wording between
+          # releases, and a silent miss here means no PR comment.
+          # Both extractions must tolerate "no match": the step runs under `bash -e`
+          # with pipefail, where a grep that finds nothing exits 1 and would fail
+          # the job even though the upload above succeeded.
+          PREVIEW_URL=""
+          if [ -f "$WRANGLER_OUTPUT_FILE_PATH" ]; then
+            PREVIEW_URL=$(jq -r 'select(.type == "version-upload") | .preview_alias_url // empty' \
+              "$WRANGLER_OUTPUT_FILE_PATH" | tail -1) || PREVIEW_URL=""
+          fi
+          if [ -z "$PREVIEW_URL" ]; then
+            PREVIEW_URL=$(grep -oE 'https://pr-[0-9]+-[a-z0-9.-]+\.workers\.dev' upload.log | head -1 || true)
+          fi
+          if [ -z "$PREVIEW_URL" ]; then
+            echo "::notice::Version uploaded, but no preview URL is available yet. A Worker that has never had a production deploy has its workers.dev subdomain disabled, so Cloudflare emits no preview URL; the first deploy on main enables it."
+          fi
+          echo "preview_url=${PREVIEW_URL}" >> "$GITHUB_OUTPUT"
+      - name: Comment preview URL on PR
+        if: steps.preview.outputs.preview_url != ''
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
-          DEPLOY_URL: ${{ steps.deploy.outputs.deploy_url }}
-          DEPLOY_BRANCH: ${{ steps.branch.outputs.deploy_branch }}
+          PREVIEW_URL: ${{ steps.preview.outputs.preview_url }}
         with:
           script: |
-            const deployUrl = process.env.DEPLOY_URL;
-            const deployBranch = process.env.DEPLOY_BRANCH;
-            const marker = '<!-- cf-preview-branch -->';
-            const body = `${marker}\n### Preview deployed\n\nBranch \`${deployBranch}\` is live at: ${deployUrl}\n\n_Updated for commit \`${context.sha.substring(0, 7)}\`._`;
+            const previewUrl = process.env.PREVIEW_URL;
+            const marker = '<!-- cf-preview-version -->';
+            const body = `${marker}\n### Preview deployed\n\nThis PR's version is live at: ${previewUrl}\n\n_Updated for commit \`${context.sha.substring(0, 7)}\`._`;
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,

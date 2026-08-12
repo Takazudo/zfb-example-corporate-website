@@ -12,7 +12,8 @@
     "dev": "zfb dev",
     "build": "zfb build",
     "preview": "zfb preview",
-    "typecheck": "zfb check"
+    "typecheck": "zfb check",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "@takazudo/zfb": "2.3.0",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wrangler": "4.85.0"
   }
 }
