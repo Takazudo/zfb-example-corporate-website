@@ -45,7 +45,7 @@ export default function Contact() {
               id="contact-name"
               name="name"
               type="text"
-              autoComplete="name"
+              autocomplete="name"
               placeholder="Jordan Avery"
               required
             />
@@ -60,7 +60,7 @@ export default function Contact() {
               id="contact-email"
               name="email"
               type="email"
-              autoComplete="email"
+              autocomplete="email"
               placeholder="jordan@company.com"
               required
             />

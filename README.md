@@ -13,17 +13,16 @@ stylesheet for design tokens and a light reset.
 
 ## What it demonstrates
 
-- A statically rendered Preact site: hero, services, about, and contact
-  sections plus header/footer chrome.
+- A statically rendered site using zfb's own **zudo-react** JSX runtime
+  (zfb 3): hero, services, about, and contact sections plus header/footer
+  chrome. There are no islands, so no client JavaScript ships.
 - Component-scoped styling via `*.module.css` — class names are rewritten to
   scoped, file-stable identifiers at build time, so two components can both
   declare a `.card` class without colliding.
-- `zfb.config.ts` with `tailwind: { enabled: false }` — the compiled
-  stylesheet contains only this demo's authored CSS (global tokens +
-  scoped module rules), no Tailwind preflight/theme layers. This requires
-  zfb >= `0.1.0-next.31`; earlier versions dropped all authored CSS when
-  the flag was set
-  ([zfb#824](https://github.com/Takazudo/zudo-front-builder/issues/824)).
+- `zfb.config.ts` with `wind: false` — the built-in zudo-wind utility engine
+  is off, so the compiled stylesheet contains only this demo's authored CSS
+  (global tokens + reset + scoped module rules), no generated utilities and
+  no extra reset layer.
 
 ## CSS Modules usage
 
@@ -45,6 +44,10 @@ export default function Hero() {
 project-relative module path, so byte-identical sources build to identical
 class names on any machine.
 
+JSX uses HTML attribute spellings (`class`, `for`, `charset`,
+`autocomplete`), because zudo-react renders intrinsic elements with their HTML
+names; React spellings such as `className` or `charSet` fail `zfb check`.
+
 ## Repository layout
 
 ```
@@ -52,7 +55,7 @@ pages/        route components (index.tsx)
 layouts/      shared page chrome (default.tsx)
 components/   per-section components, each with its own *.module.css
 styles/       global.css (design tokens + reset), css-modules.d.ts
-zfb.config.ts framework config (Preact, Tailwind disabled)
+zfb.config.ts zfb config (wind: false — authored CSS only)
 ```
 
 ## Framework dependency
@@ -62,7 +65,9 @@ This repo depends on the `zfb` framework via the published npm packages
 [`@takazudo/zfb-runtime`](https://www.npmjs.com/package/@takazudo/zfb-runtime),
 pinned to an exact version in `package.json`. `@takazudo/zfb`
 ships a prebuilt Rust binary per platform via npm optional dependencies —
-no cargo toolchain or sibling checkout required.
+no cargo toolchain or sibling checkout required. The JSX runtime is part of
+`@takazudo/zfb` itself (`jsxImportSource: "@takazudo/zfb/zudo-react"` in
+`tsconfig.json`); there is no Preact or React dependency.
 
 ## Local development
 
@@ -152,9 +157,15 @@ To move this demo to a newer zfb:
 1. Pick the new version from the `latest` dist-tag:
    `npm view @takazudo/zfb dist-tags.latest`.
 2. Update both versions in `package.json`, run `pnpm install`, and verify
-   with `pnpm build`.
+   with `pnpm typecheck` and `pnpm build`.
 3. Commit (including `pnpm-lock.yaml`) and push — CI rebuilds and
    re-deploys.
+
+A **major** bump is a migration, not a version edit: read the upstream
+migration guide for that major first. The 2.x → 3 move, for example, removed
+the `framework` and `tailwind` config keys, replaced Preact with zudo-react,
+and required HTML attribute spellings. Before merging it, compare the built
+page in a browser against the previous version.
 
 Pinning exact versions keeps CI reproducible.
 
