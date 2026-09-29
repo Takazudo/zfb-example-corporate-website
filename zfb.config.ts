@@ -1,11 +1,10 @@
 import { defineConfig } from "@takazudo/zfb/config";
 
 // Corporate-website demo: styled entirely with CSS Modules (*.module.css)
-// plus one global token sheet — Tailwind is intentionally disabled.
-// (tailwind.enabled:false requires zfb >= 0.1.0-next.31; earlier versions
-// dropped all authored CSS with this flag — zfb#824.)
+// plus one global token sheet. `wind: false` turns off zfb's built-in
+// zudo-wind utility engine, so the emitted stylesheet is only the authored
+// CSS — no utility layer and no reset beyond the one in styles/global.css.
 export default defineConfig({
-  framework: "preact",
   base: "/",
-  tailwind: { enabled: false },
+  wind: false,
 });

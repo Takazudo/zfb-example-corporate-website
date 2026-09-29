@@ -1,4 +1,4 @@
-import type { ComponentChildren } from "preact";
+import type { Child } from "@takazudo/zfb/zudo-react";
 
 import "../styles/global.css";
 import SiteHeader from "../components/header/site-header";
@@ -7,7 +7,7 @@ import SiteFooter from "../components/footer/site-footer";
 type Props = {
   title?: string;
   description?: string;
-  children: ComponentChildren;
+  children: Child;
 };
 
 const DEFAULT_TITLE = "Northwind Studio — product engineering partner";
@@ -27,7 +27,7 @@ export default function DefaultLayout({
   return (
     <html lang="en">
       <head>
-        <meta charSet="utf-8" />
+        <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="description" content={description} />
         <meta name="color-scheme" content="light" />
