@@ -46,10 +46,14 @@ TARGET=$(npm view @takazudo/zfb dist-tags.latest)
 - **If `TARGET` is older than `CURRENT`** (possible with an explicit version
   argument): that is a downgrade — stop and ask the user to confirm before
   proceeding. The enumeration step below detects this case. Additionally,
-  **never go below `0.1.0-next.31`**: this repo styles itself entirely via
-  `tailwind: { enabled: false }`, and earlier versions dropped all authored
-  CSS under that flag (zfb#824) — a downgrade past that floor breaks the
-  whole site.
+  **never go below `3.0.0`**: the project now uses the zfb 3 config (`wind:
+  false`, no `framework` key) and the owned zudo-react JSX runtime, neither of
+  which exists in 2.x.
+- **If `TARGET` crosses a major version** (e.g. `3.x → 4.0.0`): treat it as a
+  runtime migration, not a two-line package edit. Read that major's upstream
+  migration guide (`docs/src/content/docs/guides/migrating-to-v<N>.mdx` in
+  the upstream repo at the release tag) before Step 3. Step 5's full
+  verification, including the browser comparison, is mandatory before merging.
 
 ## Step 2: Review upstream changes BEFORE bumping
 
@@ -88,19 +92,20 @@ Flag anything that touches a surface this project uses:
 
 | Upstream surface | Where this project uses it |
 | --- | --- |
-| `defineConfig` schema (`@takazudo/zfb/config`) | `zfb.config.ts` — `framework: "preact"`, `base`, `tailwind.enabled` |
-| Tailwind-disabled CSS path (`tailwind.enabled: false`) | the entire styling approach — regressed pre-next.31 (zfb#824, dropped ALL authored CSS); watch ANY CSS-pipeline change |
+| `defineConfig` schema (`@takazudo/zfb/config`) | `zfb.config.ts` — `base`, `wind: false` |
+| Authored-only CSS path (`wind: false`, zudo-wind disabled) | the entire styling approach — the stylesheet must stay only authored CSS (an earlier Tailwind-disabled path once dropped ALL authored CSS, zfb#824); watch ANY CSS-pipeline or zudo-wind change |
+| zudo-react JSX runtime (`@takazudo/zfb/zudo-react`) | `tsconfig.json` `jsxImportSource`; `Child` type in `layouts/default.tsx`; HTML attribute spellings (`class`, `for`, `charset`, `autocomplete`) in every component |
 | CSS Modules pipeline (`*.module.css` scoping, class-name hashing) | every `components/*/*.module.css`; scoped names appear in rendered HTML + hashed `dist/assets/styles-*.css` |
 | Global (non-module) CSS handling | `styles/global.css` (design tokens + reset), imported from `layouts/default.tsx` |
 | CSS Modules import typing | `styles/css-modules.d.ts` — ambient `*.module.css` declaration matching how zfb resolves the default import |
 | Static rendering / zero-client-JS output | `layouts/default.tsx`, `pages/index.tsx` — no islands, no hydration; the build must keep emitting NO JS |
 | `@takazudo/zfb-runtime` peering | not imported anywhere, but it declares an exact peer dependency on `zfb` — both pins must stay on the same version |
 | CLI commands (`zfb dev/build/preview/check`) | `package.json` scripts |
-| Documented behavior (commands, CSS Modules semantics) | `README.md` — hard-codes the scoped-class example (`QAAyqq_hero`), the command table, and the next.31/zfb#824 floor |
+| Documented behavior (commands, CSS Modules semantics) | `README.md` — hard-codes the scoped-class example (`QAAyqq_hero`), the command table, and the zudo-react / `wind: false` description |
 
 **Rule: adapt only if this project actually uses the changed feature.**
-Internal zfb changes (Rust internals, docs, frameworks other than preact,
-content collections, pagination, islands runtime, MD/MDX pipeline — none of
+Internal zfb changes (Rust internals, docs, zudo-wind utilities/tokens,
+content collections, pagination, islands/signals runtime, MD/MDX pipeline — none of
 which this demo uses) need no action — note them in the report and move on.
 
 ## Step 3: Bump both packages
@@ -139,16 +144,30 @@ pnpm typecheck   # zfb check passes
 ```
 
 Then inspect `dist/` — the checks that matter most here guard the
-Tailwind-disabled CSS path (the zfb#824 failure mode):
+authored-only CSS path (the zfb#824 failure mode):
 
 - `dist/assets/styles-*.css` emitted and linked from `dist/index.html`
 - **Authored CSS survived**: the stylesheet contains the global design tokens
   (`--color-ink`) AND scoped module rules (a class matching `*_hero`)
-- **No Tailwind leakage**: no preflight/theme layers in the stylesheet
-  (`grep -c 'tw-\|--tw\|@layer' dist/assets/styles-*.css` → 0)
+- **No utility/reset leakage**: no generated utility or reset layers in the
+  stylesheet (`grep -c 'tw-\|--tw\|@layer' dist/assets/styles-*.css` → 0)
+- **Every scoped class resolves**: each class in `dist/index.html` has a
+  matching selector in the stylesheet
 - **Still zero JS**: no `.js` files anywhere in `dist/`, no `<script>` tags in
   `dist/index.html` — this demo is fully static
-- No stranded `zfb-tailwind-entry-*.css` temp files
+- No stranded `zfb-tailwind-entry-*.css` temp files (a 2.x-era artifact;
+  still ignored in `.gitignore`)
+
+For a **major** bump, also compare against the previous version in a browser:
+build the old version first, then capture full-page screenshots at a narrow
+(375px) and wide (1280px) viewport and on both sides of each `@media`
+breakpoint in the CSS (38rem / 48rem / 56rem). Diff the layout of every
+section, check that there are no console errors or failed requests, and check
+that the skip link and focus outlines still work. Run
+`pnpm smoke` only with an explicit local URL
+(`SMOKE_URL=http://127.0.0.1:<port>/ pnpm smoke` against `pnpm preview --port
+<port>`), because its default target is the live production host. Record a real
+pass, not a skip notice.
 
 Optional but recommended — dev-server smoke test. Note `pnpm dev` wipes
 `dist/` via the `predev` script, so do this AFTER the dist inspection and
