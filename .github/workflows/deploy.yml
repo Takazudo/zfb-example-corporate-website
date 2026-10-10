@@ -58,6 +58,8 @@ jobs:
         run: pnpm typecheck
       - name: Build
         run: pnpm build
+      - name: Verify static output
+        run: pnpm verify:dist
 
   deploy:
     name: Deploy to Cloudflare Workers
@@ -114,7 +116,8 @@ jobs:
   preview:
     name: Preview deploy
     needs: build
-    if: github.event_name == 'pull_request'
+    # This upgrade pilot is authorized for verification only, including if made ready.
+    if: github.event_name == 'pull_request' && github.head_ref != 'chore/zfb-4.3.0-corporate-pilot'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
