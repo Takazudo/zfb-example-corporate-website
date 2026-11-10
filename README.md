@@ -71,6 +71,9 @@ no cargo toolchain or sibling checkout required. The JSX runtime is part of
 
 ## Local development
 
+zfb 5 and later require **Node.js 24** or newer (`engines.node` in
+`package.json`).
+
 ```sh
 pnpm install
 pnpm build      # zfb build  -> dist/
