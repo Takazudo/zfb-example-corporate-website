@@ -17,8 +17,8 @@
     "verify:dist": "node scripts/verify-dist.mjs"
   },
   "dependencies": {
-    "@takazudo/zfb": "6.0.1",
-    "@takazudo/zfb-runtime": "6.0.1"
+    "@takazudo/zfb": "7.2.0",
+    "@takazudo/zfb-runtime": "7.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
